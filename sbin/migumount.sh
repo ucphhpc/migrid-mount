@@ -111,10 +111,7 @@ parse_input() {
 main() {
     # Main
     declare cmd=""
-
-    set_mount_syslog_queue
     parse_input "${@}"
-
     info "Starting $__action__"
     cmd="pre_umount_stop_services"
     execute_force "$cmd"

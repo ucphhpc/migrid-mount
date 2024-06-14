@@ -9,7 +9,6 @@ declare -xi __SYSLOG__=0
 declare -xi __DEBUG_LVL__=0
 declare -xi __DRY_RUN__=0
 declare -x __MSG_DATE_STR__="%Y-%m-%d %H:%M:%S,%N"
-declare -x __SYSLOG_QUEUE__=""
 
 
 execute_set_output() {
@@ -116,7 +115,7 @@ info() {
     declare -r msg="INFO: $_msg_"
     [ $__QUIET__ -eq 0 ] && echo -e "\e[32m$(date "+${__MSG_DATE_STR__}") $msg\033[0m" >&2
     [ $__SYSLOG__ -eq 1 ] \
-        && logger -p "${__SYSLOG_QUEUE__}.info" -t "migmount[$__PID__]" "$msg"
+        && logger -p "info" -t "migmount[$__PID__]" "$msg"
     return 0
 }; declare -xf info
 
@@ -126,7 +125,7 @@ error() {
     declare -r msg="ERROR: $_msg_"
     [ $__QUIET__ -eq 0 ] && echo -e "\e[31m$(date "+${__MSG_DATE_STR__}") $msg\033[0m" >&2
     [ $__SYSLOG__ -eq 1 ] \
-        && logger -p "${__SYSLOG_QUEUE__}.error" -t "migmount[$__PID__]" "$msg"
+        && logger -p "error" -t "migmount[$__PID__]" "$msg"
     return 0
 }; declare -xf error
 
@@ -136,7 +135,7 @@ warning() {
     declare -r msg="WARNING: $_msg_"
     [ $__QUIET__ -eq 0 ] && echo -e "\e[91m$(date "+${__MSG_DATE_STR__}") $msg\033[0m" >&2
     [ $__SYSLOG__ -eq 1 ] \
-        && logger -p "${__SYSLOG_QUEUE__}.warn" -t "migmount[$__PID__]" "$msg"
+        && logger -p "warn" -t "migmount[$__PID__]" "$msg"
     return 0
 }; declare -xf warning
 
@@ -149,7 +148,7 @@ debug() {
         && echo -e "\e[34m$(date "+${__MSG_DATE_STR__}") $msg\\033[0m " >&2 
     [ "$__DEBUG_LVL__" -ge "$_level_" ] \
         && [ $__SYSLOG__ -eq 1 ] \
-        && logger -p "${__SYSLOG_QUEUE__}.debug" -t "migmount[$__PID__]" "$msg"
+        && logger -p "debug" -t "migmount[$__PID__]" "$msg"
     return 0
 }; declare -xf debug
 
@@ -184,7 +183,7 @@ develop () {
     _msg_="DEVELOP: $_msg_"
     echo -e "\e[37m\e[100m$(date "+${__MSG_DATE_STR__}") $_msg_\e[49m\033[0m " >&2
     [ $__SYSLOG__ -eq 1 ] \
-        && logger -p "${__SYSLOG_QUEUE__}.debug" -t "migmount[$__PID__]" "$_msg_"
+        && logger -p "debug" -t "migmount[$__PID__]" "$_msg_"
     return 0
 }; declare -xf develop
 

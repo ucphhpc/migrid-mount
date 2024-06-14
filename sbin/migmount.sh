@@ -112,10 +112,7 @@ parse_input() {
 main() {
     # Main
     declare cmd=""
-
-    set_mount_syslog_queue
     parse_input "${@}"
-
     info "Starting $__action__"
     if [ "$__action__" == "gluster" ]; then
         cmd="mount-gluster"

@@ -3,8 +3,10 @@
 # NOTE: We need 'declare -x' in order to access the variables from bash parallel
 
 declare -x MOUNT_BIND_OPTS="-o bind,relatime"
-declare -x MIG_LUSTRE_BASE="${LUSTRE_BACKEND_DEST}/${FQDN}"
-declare -x MIG_GLUSTER_BASE="${GLUSTER_BACKEND_DEST}/${FQDN}"
+
+# Ensure MIG base ends with FQDN
+declare -x MIG_LUSTRE_BASE="${LUSTRE_BACKEND_DEST}"
+declare -x MIG_GLUSTER_BASE="${GLUSTER_BACKEND_DEST}"
 
 declare -x STORAGE_BASE="/storage"
 declare -x MIG_STATE_DIR="/home/mig/state"
@@ -200,10 +202,12 @@ mount_lustre_gocryptfs() {
     declare -i ret=0
     declare cmd=""
     declare result=""
-
+    declare srcpath="${LUSTRE_BACKEND_DEST}"
+    # If lustre is not submounted into FQDN then add FQDN to srcpath
+    [[ ! "${srcpath}" == *"${FQDN}" ]] && srcpath="${srcpath}/${FQDN}"
     [ -z "${_destpath_}" ] && _destpath_="${MIG_STORAGE_BASE}"
 
-    cmd="mount_gocryptfs \"${LUSTRE_BACKEND_DEST}/${FQDN}\" \"${_destpath_}\" \"${GOCRYPTFS_CTLSOCK}\""
+    cmd="mount_gocryptfs \"${srcpath}\" \"${_destpath_}\" \"${GOCRYPTFS_CTLSOCK}\""
     result=$(execute "$cmd")
     ret=$?
     debug 3 "|:|ret=$ret|:|result=$result"
@@ -546,7 +550,6 @@ mount_bind_storage_resources() {
     declare cmd=""
     
     for key in "${!MIG_STORAGE_RESOURCES[@]}" ; do
-        echo "key: $key"
         srcdir="$key"
         destdir="${MIG_STORAGE_RESOURCES[$key]}"
         cmd="mount_bind_dir \"${srcdir}\" \"${destdir}\" 0"
@@ -901,10 +904,9 @@ mount-gocryptfs-opt-dirs() {
     declare srcpath=""
     declare destpath=""
     declare cmd=""
-
-    for key in "${!GOCRYPTFS_OPTIONAL_DIRS[@]}"; do
+    for key in "${!GOCRYPTFS_OPT_DIRS[@]}"; do
         srcpath="$key"
-        destpath="${GOCRYPTFS_OPTIONAL_DIRS[$key]}"
+        destpath="${GOCRYPTFS_OPT_DIRS[$key]}"
         cmd="mount_gocryptfs \"${srcpath}\" \"${destpath}\" \"\""
         result=$(execute "$cmd")
         res=$?
@@ -921,8 +923,8 @@ umount-gocryptfs-opt-dirs() {
     declare -i ret=0
     declare cmd=""
     declare mountpath=""
-    for key in "${!GOCRYPTFS_OPTIONAL_DIRS[@]}"; do
-        mountpath="${GOCRYPTFS_OPTIONAL_DIRS[$key]}"
+    for key in "${!GOCRYPTFS_OPT_DIRS[@]}"; do
+        mountpath="${GOCRYPTFS_OPT_DIRS[$key]}"
         cmd="umount_dir \"${mountpath}\""
         execute "$cmd"
         [ "$res" -ne 0 ] && ret=$res
@@ -932,27 +934,11 @@ umount-gocryptfs-opt-dirs() {
     return $ret
 }   
 
-set_mount_syslog_queue() {
-    declare syslog_queue=""
-    declare -i ret=0
-    declare -r rsyslog_conf="/etc/rsyslog.conf"
-    declare -r syslogfile="migmount.log"
-
-    syslog_queue=$(cat "${rsyslog_conf}" | grep "${syslogfile}" | awk -F '.' '{print $1}')
-    ret=$?
-    if [[ $ret -eq 0 && -n "${syslog_queue}" ]]; then
-        __SYSLOG_QUEUE__="${syslog_queue}"
-    else
-        logger -t "migmount[$__PID__]" "No migmount queue entry (${syslogfile}) in '${rsyslog_conf}', using ${__SYSLOG_QUEUE__} queue"
-    fi
-
-    return $ret
-}
-
 post_mount_start_services() {
     declare -i ret=0
     declare -i res=0
     for service in "${POST_MOUNT_SERVICES[@]}"; do
+	[ -z "$service" ] && continue
         cmd="service $service start >/dev/null 2>&1"
         execute_force "$cmd"
         res=$?
@@ -968,6 +954,7 @@ pre_umount_stop_services() {
     declare -i ret=0
     declare -i res=0
     for service in "${PRE_UMOUNT_SERVICES[@]}"; do
+	[ -z "$service" ] && continue
         cmd="service $service stop >/dev/null 2>&1"
         execute_force "$cmd"
         res=$?
