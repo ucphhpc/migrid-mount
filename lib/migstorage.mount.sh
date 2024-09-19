@@ -11,6 +11,7 @@ declare -x MIG_GLUSTER_BASE="${GLUSTER_BACKEND_DEST}"
 declare -x STORAGE_BASE="/storage"
 declare -x MIG_STATE_DIR="/home/mig/state"
 declare -x MIG_STORAGE_BASE="${STORAGE_BASE}/${FQDN}/sitedata"
+declare -x MIG_TMPFS_BASE="${STORAGE_BASE}/tmpfs"
 
 declare -x MIG_MIGRATE_DIR="migrate"
 declare -x MIG_MIGRATE_ORIGIN_FINALIZE="${STORAGE_BASE}/${FQDN}/${MIG_MIGRATE_DIR}"
@@ -228,7 +229,6 @@ umount_lustre_gocryptfs() {
     cmd="umount_dir \"$_destpath_\""
     execute "$cmd"
     ret=$?
-    
     [ "$ret" -eq 0 ] && [ -f "${GOCRYPTFS_CTLSOCK}" ] && rm -f "${GOCRYPTFS_CTLSOCK}"
     
     return $ret
@@ -609,7 +609,13 @@ mount-gluster() {
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
-    cmd="mount-gocryptfs-opt-dirs"
+    cmd="mount_gocryptfs_opt_dirs"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="mount_tmpfs_dirs"
     execute_force "$cmd"
     res=$?
     [ "$res" -ne 0 ] && ret=$res
@@ -624,6 +630,12 @@ umount-gluster() {
     declare -i ret=0
     declare cmd=""
     
+    cmd="umount_tmpfs_dirs"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
     cmd="umount_bind_storage_resources"
     execute_force "$cmd"
     res=$?
@@ -681,6 +693,12 @@ mount-lustre() {
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
     
+    cmd="mount_tmpfs_dirs"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
     return $ret
 }
 
@@ -689,6 +707,12 @@ umount-lustre() {
     declare -i res=0
     declare -i ret=0
     declare cmd=""
+
+    cmd="umount_tmpfs_dirs"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
     cmd="umount_bind_storage_resources"
     execute_force "$cmd"
@@ -747,7 +771,13 @@ mount-lustre-gocryptfs() {
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
     
-    cmd="mount-gocryptfs-opt-dirs"
+    cmd="mount_gocryptfs_opt_dirs"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="mount_tmpfs_dirs"
     execute_force "$cmd"
     res=$?
     [ "$res" -ne 0 ] && ret=$res
@@ -762,7 +792,13 @@ umount-lustre-gocryptfs() {
     declare -i ret=0
     declare cmd=""
     
-    cmd="umount-gocryptfs-opt-dirs"
+    cmd="umount_tmpfs_dirs"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="umount_gocryptfs_opt_dirs"
     execute_force "$cmd"
     res=$?
     [ "$res" -ne 0 ] && ret=$res
@@ -843,6 +879,13 @@ mount-migrate-with-gluster-base() {
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
+    cmd="mount_tmpfs_dirs"
+    execute_force "$cmd"
+    debug 3 "mount-migrate-with-gluster-base.mount_tmpfs_dirs: $res"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
     return $ret
 }
 
@@ -851,6 +894,13 @@ umount-migrate-with-gluster-base() {
     declare -i res=0
     declare -i ret=0
     declare cmd=""
+
+    cmd="umount_tmpfs_dirs"
+    execute_force "$cmd"
+    debug 3 "umount-migrate-with-gluster-base.umount_tmpfs_dirs: $res"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
     cmd="umount_bind_storage_resources"
     execute_force "$cmd"
@@ -898,7 +948,7 @@ umount-migrate-with-gluster-base() {
 }
 
 
-mount-gocryptfs-opt-dirs() {
+mount_gocryptfs_opt_dirs() {
     declare -i res=0
     declare -i ret=0
     declare srcpath=""
@@ -918,7 +968,8 @@ mount-gocryptfs-opt-dirs() {
     return $ret
 }
 
-umount-gocryptfs-opt-dirs() {
+
+umount_gocryptfs_opt_dirs() {
     declare -i res=0
     declare -i ret=0
     declare cmd=""
@@ -932,7 +983,54 @@ umount-gocryptfs-opt-dirs() {
     done
 
     return $ret
-}   
+}
+
+
+mount_tmpfs_dirs() {
+    declare -i res=0
+    declare -i ret=0
+    declare cmd=""
+    declare tmpfs_mount=""
+    for tmpfs_dir in "${MIG_TMPFS_DIRS[@]}"; do
+        # Create tmpfs target
+        [ -z "${tmpfs_dir}" ] && continue
+        tmpfs_mount="${MIG_TMPFS_BASE}/${tmpfs_dir}"
+        cmd="mkdir -p ${tmpfs_mount}"
+        execute "$cmd"
+        ret=$?
+        [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+        # Mount tmpfs target
+        cmd="mount -t tmpfs -o ${MIG_TMPFS_MOUNT_OPTS} tmpfs ${tmpfs_mount}"
+        execute_force "$cmd"
+        res=$?
+        debug 3 "mount_tmpfs_dirs: $res"
+        [ "$res" -ne 0 ] && ret=$res
+        [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+    done
+
+    return $ret
+}
+
+
+umount_tmpfs_dirs() {
+    declare -i res=0
+    declare -i ret=0
+    declare cmd=""
+    declare tmpfs_mount=""
+    for tmpfs_dir in "${MIG_TMPFS_DIRS[@]}"; do
+        [ -z "${tmpfs_dir}" ] && continue
+        tmpfs_mount="${MIG_TMPFS_BASE}/${tmpfs_dir}"
+        cmd="umount_dir \"${tmpfs_mount}\""
+        execute "$cmd"
+        ret=$?
+        debug 3 "umount_tmpfs_dirs: $res"
+        [ "$res" -ne 0 ] && ret=$res
+        [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+    done
+
+    return $ret
+}
+
 
 post_mount_start_services() {
     declare -i ret=0
@@ -949,6 +1047,7 @@ post_mount_start_services() {
 
     return $ret
 }
+
 
 pre_umount_stop_services() {
     declare -i ret=0
