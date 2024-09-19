@@ -119,19 +119,19 @@ main() {
     iferror $ret "Failed to stop services: ${PRE_UMOUNT_SERVICES}"
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
     if [ "$__action__" == "gluster" ]; then
-        cmd="umount-gluster"
+        cmd="umount_gluster"
         execute_force "$cmd"
         ret=$?
     elif [ "$__action__" == "lustre" ]; then
-        cmd="umount-lustre"
+        cmd="umount_lustre"
         execute_force "$cmd"
         ret=$?
     elif [ "$__action__" == "lustre-gocryptfs" ]; then
-        cmd="umount-lustre-gocryptfs"
+        cmd="umount_lustre_gocryptfs"
         execute_force "$cmd"
         ret=$?
     elif [ "$__action__" == "migrate" ]; then
-        cmd="umount-migrate-with-gluster-base"
+        cmd="umount_migrate_with_gluster_base"
         execute_force "$cmd"
         ret=$?
     else

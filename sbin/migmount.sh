@@ -115,19 +115,19 @@ main() {
     parse_input "${@}"
     info "Starting $__action__"
     if [ "$__action__" == "gluster" ]; then
-        cmd="mount-gluster"
+        cmd="mount_gluster"
         execute_force "$cmd"
         ret=$?
     elif [ "$__action__" == "lustre" ]; then
-        cmd="mount-lustre"
+        cmd="mount_lustre"
         execute_force "$cmd"
         ret=$?
     elif [ "$__action__" == "lustre-gocryptfs" ]; then
-        cmd="mount-lustre-gocryptfs"
+        cmd="mount_lustre_gocryptfs"
         execute_force "$cmd"
         ret=$?
     elif [ "$__action__" == "migrate" ]; then
-        cmd="mount-migrate-with-gluster-base"
+        cmd="mount_migrate_with_gluster_base"
         execute_force "$cmd"
         ret=$?
     else
