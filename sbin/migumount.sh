@@ -139,8 +139,8 @@ main() {
         usage
         exit 
     fi
-    iferror $ret "Failed for action: $__action__"
-    ifok $ret "$__action__ succeeded"
+    iferror $ret "$__scriptname__ $__action__ failed"
+    ifok $ret "$__scriptname__ $__action__ succeeded"
     return $ret
 }
 

@@ -68,13 +68,13 @@ __mount_bind_dir() {
     declare result=""
 
     if [ ! -d "${_srcpath_}" ]; then
-        error "Missing src state dir: ${_srcpath_}"
+        error "Missing bind source dir: ${_srcpath_}"
         ret=1
         return $ret
     fi
     if [ ! -d "${_destpath_}" ]; then
         if [ -e "${_destpath_}" ]; then
-            error "Dest state dir: ${_destpath_} exists but is NOT a directory"
+            error "bind destination: ${_destpath_} exists but is NOT a directory"
             ret=1
             return $ret
         fi
@@ -222,7 +222,9 @@ __mount_bind_lustre() {
     declare -i ret=0
     declare cmd=""
     declare result=""
-
+    declare srcpath="${LUSTRE_BACKEND_DEST}"
+    # If lustre is not submounted into FQDN then add FQDN to srcpath
+    [[ ! "${srcpath}" == *"${FQDN}" ]] && srcpath="${srcpath}/${FQDN}"
     [ -z "${_destpath_}" ] && _destpath_="${MIG_DATA_BASE}"
 
     cmd="mkdir -p ${_destpath_}"
@@ -230,7 +232,7 @@ __mount_bind_lustre() {
     ret=$?
     [ $ret -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
-    cmd="__mount_bind_dir  \"${LUSTRE_BACKEND_DEST}/${FQDN}\" \"${_destpath_}\" 0"
+    cmd="__mount_bind_dir  \"${srcpath}\" \"${_destpath_}\" 0"
     execute "$cmd"
     ret=$?
 
@@ -344,7 +346,9 @@ __mount_bind_gluster() {
     declare -i ret=0
     declare cmd=""
     declare result=""
-
+    declare srcpath="${GLUSTER_BACKEND_DEST}"
+    # If gluster is not submounted into FQDN then add FQDN to srcpath
+    [[ ! "${srcpath}" == *"${FQDN}" ]] && srcpath="${srcpath}/${FQDN}"
     [ -z "${_destpath_}" ] && _destpath_="${MIG_DATA_BASE}"
 
     cmd="mkdir -p ${_destpath_}"
@@ -352,7 +356,7 @@ __mount_bind_gluster() {
     ret=$?
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
-    cmd="__mount_bind_dir \"${GLUSTER_BACKEND_DEST}/${FQDN}\" \"${_destpath_}\" 0"
+    cmd="__mount_bind_dir \"${srcpath}\" \"${_destpath_}\" 0"
     execute "$cmd"
     ret=$?
         
