@@ -113,7 +113,7 @@ main() {
     # Main
     declare cmd=""
     parse_input "${@}"
-    info "Starting $__action__"
+    info "$__scriptname__ $__action__"
     if [ "$__action__" == "gluster" ]; then
         cmd="mount_gluster"
         execute_force "$cmd"

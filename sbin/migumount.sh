@@ -112,7 +112,7 @@ main() {
     # Main
     declare cmd=""
     parse_input "${@}"
-    info "Starting $__action__"
+    info "$__scriptname__ $__action__"
     cmd="pre_umount_stop_services"
     execute_force "$cmd"
     ret=$?
