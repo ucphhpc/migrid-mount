@@ -63,7 +63,7 @@ usage() {
     echo "Where OPTIONS include:"
     echo "-h        display this help"
     echo "-q        quiet"
-    echo "-v        debug mode"
+    echo "-v        verbose mode"
     echo "-t        talkative mode"
     echo "-d        debug mode"
     echo "-f        force"
