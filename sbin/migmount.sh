@@ -55,6 +55,7 @@ usage() {
     # Usage help for mount
     echo "Usage: $__scriptname__ [OPTIONS] action"
     echo "Where action is one of the following:"
+    echo "  local"
     echo "  gluster"
     echo "  lustre"
     echo "  lustre-gocryptfs"
@@ -114,7 +115,11 @@ main() {
     declare cmd=""
     parse_input "${@}"
     info "$__scriptname__ $__action__"
-    if [ "$__action__" == "gluster" ]; then
+    if [ "$__action__" == "local" ]; then
+        cmd="mount_local"
+        execute_force "$cmd"
+        ret=$?
+    elif [ "$__action__" == "gluster" ]; then
         cmd="mount_gluster"
         execute_force "$cmd"
         ret=$?
