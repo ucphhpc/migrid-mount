@@ -5,6 +5,7 @@
 declare -x MOUNT_BIND_OPTS="-o bind,relatime"
 
 # Define MiG storage structure
+declare -x MIG_LOCAL_BASE="${LOCAL_BACKEND_DEST}"
 declare -x MIG_LUSTRE_BASE="${LUSTRE_BACKEND_DEST}"
 declare -x MIG_GLUSTER_BASE="${GLUSTER_BACKEND_DEST}"
 declare -x MIG_STATE_DIR="/home/mig/state"
@@ -20,7 +21,7 @@ __active_mountes() {
     declare -r mountpath="${1}"
     declare -i result=0
     declare -i ret=0
-    declare cmd=""    
+    declare cmd=""
 
     cmd="mount \
         | grep \"${mountpath}\" \
@@ -35,9 +36,21 @@ __active_mountes() {
 }
 
 
+__active_local_mounts() {
+    declare -i result=0
+    declare cmd=""
+    cmd="__active_mountes \"${LOCAL_BACKEND_DEST}\""
+    result=$(execute_force "$cmd")
+    iferrorexit $ret "Failed to resolve active local mounts: '${LOCAL_BACKEND_DEST}'"
+    echo -n "${result}"
+
+    return $ret
+}
+
+
 __active_lustre_mounts() {
     declare -i result=0
-    declare cmd=""    
+    declare cmd=""
     cmd="__active_mountes \"${LUSTRE_BACKEND_DEST}\""
     result=$(execute_force "$cmd")
     iferrorexit $ret "Failed to resolve active lustre mounts: '${LUSTRE_BACKEND_DEST}'"
@@ -49,10 +62,10 @@ __active_lustre_mounts() {
 
 __active_gluster_mounts() {
     declare -i result=0
-    declare cmd=""    
+    declare cmd=""
     cmd="__active_mountes \"${GLUSTER_BACKEND_DEST}\""
     result=$(execute_force "$cmd")
-    iferrorexit $ret "Failed to resolve active lustre mounts: '${GLUSTER_BACKEND_DEST}'"
+    iferrorexit $ret "Failed to resolve active gluster mounts: '${GLUSTER_BACKEND_DEST}'"
     echo -n "${result}"
 
     return $ret
@@ -160,6 +173,108 @@ __mount_gocryptfs() {
     ret=$?
     debug 3 "|:|ret=$ret|:|result=$result"
     [ $ret -gt 0 ] && error "${result}"
+
+    return $ret
+}
+
+
+__mount_local() {
+    declare -i ret=0
+    declare -i activemounts=0
+    declare cmd=""
+    declare result=""
+
+    # Check active mounts
+
+    # Nothing to mount if SRC equals DEST
+    if [ "${LOCAL_BACKEND_SRC}" = "${LOCAL_BACKEND_DEST}" ]; then
+        debug 3 "no local backend to mount"
+        return 0
+    fi
+
+    activemounts=$(__active_local_mounts)
+    if [ "${activemounts}" -gt 0 ]; then
+        error "local is already mounted"
+        return 1
+    fi
+
+    # Mount local
+
+    cmd="mount"
+    [ -n "${LOCAL_BACKEND_OPTS}" ] \
+        && cmd+=" -o ${LOCAL_BACKEND_OPTS}"
+    cmd+=" -t auto \"${LOCAL_BACKEND_SRC}\" \"${LOCAL_BACKEND_DEST}\""
+    cmd+=" 2>&1"
+    [ -n "${LOCAL_BACKEND_SRC}" ] && cmd="/bin/true"
+    result=$(execute "$cmd")
+    ret=$?
+    debug 3 "|:|ret=$ret|:|result=$result"
+    [ $ret -gt 0 ] && error "${result}"
+
+    return $ret
+}
+
+
+__umount_local() {
+    declare -i ret=0
+    declare cmd=""
+
+    # Nothing to unmount if SRC equals DEST
+    if [ "${LOCAL_BACKEND_SRC}" = "${LOCAL_BACKEND_DEST}" ]; then
+        debug 3 "no local backend to unmount"
+        return 0
+    fi
+
+    # Check active mounts
+
+    cmd="__active_local_mounts"
+    activemounts=$(execute_force "$cmd")
+    if [ "${activemounts}" -eq 0 ]; then
+        error "local is NOT mounted"
+        [ "$__FORCE__" -eq 0 ] && return 1
+    fi
+
+    cmd="__umount_dir \"${LOCAL_BACKEND_DEST}\""
+    execute "$cmd"
+    ret=$?
+
+    return $ret
+}
+
+
+__mount_bind_local() {
+    declare _destpath_=""
+    [ ${#@} -gt 0 ] && _destpath_="${1}"
+    declare -i ret=0
+    declare cmd=""
+    declare result=""
+    declare srcpath="${LOCAL_BACKEND_DEST}"
+    [ -z "${_destpath_}" ] && _destpath_="${MIG_DATA_BASE}"
+
+    cmd="mkdir -p ${_destpath_}"
+    execute "$cmd"
+    ret=$?
+    [ $ret -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="__mount_bind_dir  \"${srcpath}\" \"${_destpath_}\" 0"
+    execute "$cmd"
+    ret=$?
+
+    return $ret
+}
+
+
+__umount_bind_local() {
+    declare _destpath_=""
+    [ ${#@} -gt 0 ] && _destpath_="${1}"
+    declare -i ret=0
+    declare cmd=""
+
+    [ -z "$_destpath_" ] && _destpath_="${MIG_DATA_BASE}"
+
+    cmd="__umount_dir \"$_destpath_\""
+    execute "$cmd"
+    ret=$?
 
     return $ret
 }
@@ -693,6 +808,96 @@ __umount_diskimg() {
         [ "$res" -ne 0 ] && ret=$res
         [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
     done
+
+    return $ret
+}
+
+
+mount_local() {
+    declare -i res=0
+    declare -i ret=0
+    declare cmd=""
+
+    cmd="__mount_local"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="__mount_diskimg"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="__mount_tmpfs_dirs"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="__mount_bind_local"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="__mount_bind_state_dirs"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="__mount_bind_storage"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    return $ret
+}
+
+
+umount_local() {
+    declare -i res=0
+    declare -i ret=0
+    declare cmd=""
+
+    cmd="__umount_bind_storage"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="__umount_bind_state_dirs"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="__umount_bind_local"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="__umount_tmpfs_dirs"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="__umount_diskimg"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="__umount_local"
+    execute_force "$cmd"
+    res=$?
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
     return $ret
 }

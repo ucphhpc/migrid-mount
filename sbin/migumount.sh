@@ -55,6 +55,7 @@ usage() {
     # Usage help for mount
     echo "Usage: $__scriptname__ [OPTIONS] action"
     echo "Where action is one of the following:"
+    echo "  local"
     echo "  gluster"
     echo "  lustre"
     echo "  lustre-gocryptfs"
@@ -118,7 +119,11 @@ main() {
     ret=$?
     iferror $ret "Failed to stop services: ${PRE_UMOUNT_SERVICES}"
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-    if [ "$__action__" == "gluster" ]; then
+    if [ "$__action__" == "local" ]; then
+        cmd="umount_local"
+        execute_force "$cmd"
+        ret=$?
+    elif [ "$__action__" == "gluster" ]; then
         cmd="umount_gluster"
         execute_force "$cmd"
         ret=$?
