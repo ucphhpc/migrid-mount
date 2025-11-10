@@ -9,12 +9,6 @@ declare -x MIG_LOCAL_BASE="${LOCAL_BACKEND_DEST}"
 declare -x MIG_LUSTRE_BASE="${LUSTRE_BACKEND_DEST}"
 declare -x MIG_GLUSTER_BASE="${GLUSTER_BACKEND_DEST}"
 declare -x MIG_STATE_DIR="/home/mig/state"
-declare -x MIG_MIGRATE_DIR="migrate"
-declare -x MIG_MIGRATE_ORIGIN_FINALIZE="${STORAGE_BASE}/${FQDN}/${MIG_MIGRATE_DIR}"
-declare -x MIG_MIGRATE_TARGET_BASE="${STORAGE_BASE}/${MIG_MIGRATE_DIR}/destination/${FQDN}"
-declare -x MIG_STATE_SYSTEM_STORAGE="${MIG_STATE_DIR}/mig_system_storage"
-declare -x MIG_STATE_MIGRATE_TARGET="${MIG_STATE_SYSTEM_STORAGE}/${MIG_MIGRATE_DIR}/destination"
-declare -x MIG_STATE_MIGRATE_RO_ORIGIN="${MIG_STATE_SYSTEM_STORAGE}/${MIG_MIGRATE_DIR}/origin_readonly"
 
 
 __active_mountes() {
@@ -495,163 +489,6 @@ __umount_bind_gluster() {
 }
 
 
-__mount_bind_migrate_dirs() {
-    declare -i res=0
-    declare -i ret=0
-    local srcpath
-    local destpath
-
-    # Mount bind lustre 
-
-    cmd="__mount_bind_lustre \"${MIG_MIGRATE_TARGET_BASE}\""
-    execute "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    # Mount bind gluster RO migrate dir
-
-    cmd="__mount_bind_dir \"${MIG_MIGRATE_ORIGIN_FINALIZE}\" \"${MIG_STATE_MIGRATE_RO_ORIGIN}\" 1"
-    execute "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    # Mount bind lustre migrate dir
-
-    cmd="__mount_bind_dir \"${MIG_MIGRATE_TARGET_BASE}\" \"${MIG_STATE_MIGRATE_TARGET}\" 0"
-    execute "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    # Mount bind lustre RO state dirs
-
-    for key in "${!MIG_RO_STATE_DIRS[@]}"; do
-        srcpath="${MIG_MIGRATE_TARGET_BASE}/$key"
-        destpath="${MIG_STATE_MIGRATE_TARGET}/${MIG_RO_STATE_DIRS[$key]}"
-        cmd="__mount_bind_dir \"${srcpath}\" \"${destpath}\" 1"
-        execute "$cmd"
-        res=$?
-        [ "$res" -ne 0 ] && ret=$res
-        [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-    done
-
-    return $ret
-}
-
-
-__umount_bind_migrate_dirs() {
-    declare -i res=0
-    declare -i ret=0
-    declare destpath=""
-    declare cmd=""
-
-    # Umount bind lustre RO state dirs
-
-    for key in "${!MIG_RO_STATE_DIRS[@]}"; do
-        destpath="${MIG_STATE_MIGRATE_TARGET}/${MIG_RO_STATE_DIRS[$key]}"
-        cmd="__umount_dir \"${destpath}\""
-        execute "$cmd"
-        res=$?
-        [ "$res" -ne 0 ] && ret=$res
-        [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-    done
-
-    # Umount bind lustre migrate dir
-
-    cmd="__umount_dir \"${MIG_STATE_MIGRATE_TARGET}\""
-    execute "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-    
-    # Umount bind gluster RO migrate dir
-
-    cmd="__umount_dir \"${MIG_STATE_MIGRATE_RO_ORIGIN}\""
-    execute "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    # Umount bind lustre 
-
-    cmd="__umount_dir \"${MIG_MIGRATE_TARGET_BASE}\""
-    execute "$cmd"
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    return $ret
-}
-
-
-__mount_bind_state_dirs() {
-    declare -i res=0
-    declare -i ret=0
-    declare src=""
-    declare dest=""
-    declare srcpath=""
-    declare destpath=""
-
-    for key in "${!MIG_STATE_DIRS[@]}" ; do
-        src="$key"
-        dest="${MIG_STATE_DIRS[$key]}"
-        srcpath="${MIG_DATA_BASE}/${src}"
-        destpath="${MIG_STATE_DIR}/${dest}"
-        cmd="__mount_bind_dir \"${srcpath}\" \"${destpath}\" 0"
-        execute "$cmd"
-        res=$?
-        [ "$res" -ne 0 ] && ret=$res
-        [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-    done
-
-    for key in "${!MIG_RO_STATE_DIRS[@]}" ; do
-        src="${key}"
-        dest="${MIG_RO_STATE_DIRS[$key]}"
-        srcpath="${MIG_DATA_BASE}/${src}"
-        destpath="${MIG_STATE_DIR}/${dest}"
-        cmd="__mount_bind_dir \"${srcpath}\" \"${destpath}\" 1"
-        execute "$cmd"
-        res=$?
-        [ "$res" -ne 0 ] && ret=$res
-        [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-    done
-
-    return $ret
-}
-
-
-__umount_bind_state_dirs() {
-    declare -i res=0
-    declare -i ret=0
-    declare dest=""
-    declare dest_state_dir=""
-    declare cmd=""
-
-    for key in "${!MIG_RO_STATE_DIRS[@]}" ; do
-        dest="${MIG_RO_STATE_DIRS[$key]}"
-        dest_state_dir="${MIG_STATE_DIR}/${dest}"
-        cmd="__umount_dir \"${dest_state_dir}\""
-        execute "$cmd"
-        res=$?
-        [ "$res" -ne 0 ] && ret=$res
-        [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-    done
-
-    for key in "${!MIG_STATE_DIRS[@]}" ; do
-        dest="${MIG_STATE_DIRS[$key]}"
-        dest_state_dir="${MIG_STATE_DIR}/${dest}"
-        cmd="__umount_dir \"${dest_state_dir}\""
-        execute "$cmd"
-        res=$?
-        [ "$res" -ne 0 ] && ret=$res
-        [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-    done
-
-    return $ret
-}
-
-
 __mount_bind_storage() {
     declare -i res=0
     declare -i ret=0
@@ -842,12 +679,6 @@ mount_local() {
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
-    cmd="__mount_bind_state_dirs"
-    execute_force "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
     cmd="__mount_bind_storage"
     execute_force "$cmd"
     res=$?
@@ -864,12 +695,6 @@ umount_local() {
     declare cmd=""
 
     cmd="__umount_bind_storage"
-    execute_force "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    cmd="__umount_bind_state_dirs"
     execute_force "$cmd"
     res=$?
     [ "$res" -ne 0 ] && ret=$res
@@ -932,12 +757,6 @@ mount_lustre() {
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
-    cmd="__mount_bind_state_dirs"
-    execute_force "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
     cmd="__mount_bind_storage"
     execute_force "$cmd"
     res=$?
@@ -954,12 +773,6 @@ umount_lustre() {
     declare cmd=""
 
     cmd="__umount_bind_storage"
-    execute_force "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    cmd="__umount_bind_state_dirs"
     execute_force "$cmd"
     res=$?
     [ "$res" -ne 0 ] && ret=$res
@@ -1022,12 +835,6 @@ mount_lustre_gocryptfs() {
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
-    cmd="__mount_bind_state_dirs"
-    execute_force "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
     cmd="__mount_bind_storage"
     execute_force "$cmd"
     res=$?
@@ -1056,12 +863,6 @@ umount_lustre_gocryptfs() {
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
     cmd="__umount_bind_storage"
-    execute_force "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    cmd="__umount_bind_state_dirs"
     execute_force "$cmd"
     res=$?
     [ "$res" -ne 0 ] && ret=$res
@@ -1124,12 +925,6 @@ mount_gluster() {
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
-    cmd="__mount_bind_state_dirs"
-    execute_force "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
     cmd="__mount_bind_storage"
     execute_force "$cmd"
     res=$?
@@ -1157,12 +952,6 @@ umount_gluster() {
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
     
-    cmd="__umount_bind_state_dirs"
-    execute_force "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
     cmd="__umount_bind_gluster"
     execute_force "$cmd"
     res=$?
@@ -1196,59 +985,24 @@ mount_migrate_with_gluster_base() {
     declare -i ret=0
     declare cmd=""
 
-    cmd="__mount_gluster"
+    cmd="mount_gluster"
     execute_force "$cmd"
     res=$?
     debug 3 "mount_migrate_with_gluster_base.mount_gluster: $res"
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
-    cmd="__mount_diskimg"
-    execute_force "$cmd"
-    res=$?
-    debug 3 "mount_migrate_with_gluster_base.__mount_diskimg: $res"
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    cmd="__mount_tmpfs_dirs"
-    execute_force "$cmd"
-    debug 3 "mount_migrate_with_gluster_base.mount_tmpfs_dirs: $res"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    cmd="__mount_bind_gluster"
-    execute_force "$cmd"
-    res=$?
-    debug 3 "mount_migrate_with_gluster_base.mount_bind_gluster: $res"
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    cmd="__mount_bind_state_dirs"
-    execute_force "$cmd"
-    res=$?
-    debug 3 "mount_migrate_with_gluster_base.mount_bind_state_dirs: $res"
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
     cmd="__mount_lustre"
     execute_force "$cmd"
     res=$?
-    debug 3 "mount_migrate_with_gluster_base.mount_lustre: $res"
+    debug 3 "mount_migrate_with_gluster_base.__mount_lustre: $res"
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
-    cmd="__mount_bind_migrate_dirs"
-    execute_force "$cmd"
-    res=$?
-    debug 3 "mount_migrate_with_gluster_base.mount_bind_migrate_dirs: $res"
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret    
-
-    cmd="__mount_bind_storage"
-    execute_force "$cmd"
-    debug 3 "mount_migrate_with_gluster_base.mount_bind_storage: $res"
-    res=$?
+    cmd="__mount_bind_dir  \"${LUSTRE_BACKEND_DEST}\" \"${MIG_DATA_MIGRATE_BASE}\" 0"
+    execute "$cmd"
+    ret=$?
+    debug 3 "mount_migrate_with_gluster_base.__mount_bind_dir: $res"
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
@@ -1261,59 +1015,24 @@ umount_migrate_with_gluster_base() {
     declare -i ret=0
     declare cmd=""
 
-
-    cmd="__umount_bind_storage"
-    execute_force "$cmd"
-    res=$?
-    debug 3 "umount_migrate_with_gluster_base.__umount_bind_storage: $res"
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    cmd="__umount_bind_migrate_dirs"
-    execute_force "$cmd"
-    res=$?
-    debug 3 "umount_migrate_with_gluster_base.umount_bind_migrate_dirs: $res"
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret    
-
-    cmd="__umount_bind_state_dirs"
-    execute_force "$cmd"
-    res=$?
-    debug 3 "umount_migrate_with_gluster_base.__umount_bind_state_dirs: $res"
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    cmd="__umount_bind_gluster"
-    execute_force "$cmd"
-    res=$?
-    debug 3 "umount_migrate_with_gluster_base.umount_bind_gluster: $res"
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    cmd="__umount_tmpfs_dirs"
-    execute_force "$cmd"
-    debug 3 "umount_migrate_with_gluster_base.umount_tmpfs_dirs: $res"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    cmd="__umount_diskimg"
-    execute_force "$cmd"
-    res=$?
-    [ "$res" -ne 0 ] && ret=$res
-    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
-
-    cmd="__umount_gluster"
-    execute_force "$cmd"
-    res=$?
-    debug 3 "umount_migrate_with_gluster_base.umount_gluster: $res"
+    cmd="__umount_dir \"${MIG_DATA_MIGRATE_BASE}\""
+    execute "$cmd"
+    ret=$?
+    debug 3 "umount_migrate_with_gluster_base.__umount_dir: $res"
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
     cmd="__umount_lustre"
     execute_force "$cmd"
     res=$?
-    debug 3 "umount_migrate_with_gluster_base.umount_lustre: $res"
+    debug 3 "umount_migrate_with_gluster_base.__umount_lustre: $res"
+    [ "$res" -ne 0 ] && ret=$res
+    [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
+
+    cmd="umount_gluster"
+    execute_force "$cmd"
+    res=$?
+    debug 3 "umount_migrate_with_gluster_base.umount_gluster: $res"
     [ "$res" -ne 0 ] && ret=$res
     [ "$ret" -ne 0 ] && [ "$__FORCE__" -eq 0 ] && return $ret
 
